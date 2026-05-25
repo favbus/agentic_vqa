@@ -80,6 +80,18 @@ python3 agentic_vqa/agentic_runner.py \
   --force
 ```
 
+Use different models for different stages:
+
+```bash
+python3 agentic_vqa/agentic_runner.py \
+  --scout-model gpt-5.4-mini \
+  --answer-model gpt-5.4 \
+  --verify-model gpt-5.5 \
+  --out-dir outputs/agentic_vqa/hybrid_run \
+  --workers 10 \
+  --force
+```
+
 Run selected question IDs:
 
 ```bash
@@ -99,9 +111,23 @@ python3 agentic_vqa/score_agentic.py \
   --output outputs/agentic_vqa/run_001/score.json
 ```
 
+## Model Matrix
+
+Model/profile configs live in `configs/model_profiles.json`. Run a reproducible model matrix:
+
+```bash
+python3 agentic_vqa/run_matrix.py \
+  --profiles gpt54_balanced gpt55_strong hybrid_mini54_54_55 \
+  --limit 20 \
+  --gold test_standard_answers.json \
+  --workers 10 \
+  --force
+```
+
+The matrix script writes one output directory per profile plus a `matrix_summary.json`.
+
 ## Notes
 
 - Do not commit `.env`, videos, input datasets, generated outputs, or answer keys.
 - The deterministic classifier is only a prior. In normal runs, the scout pass can override the question type before policy evidence is generated.
 - The prompts are written as general routines for question types, not as fixes for specific benchmark items.
-

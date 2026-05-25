@@ -173,7 +173,7 @@ def process_question(
     total: int,
     question_file: Path,
     args: argparse.Namespace,
-    client: RelayClient | None,
+    clients: dict[str, RelayClient] | None,
 ) -> tuple[str, str]:
     qid = question_file.stem[len("video_") :]
     out_file = args.out_dir / "clips" / f"{qid}.json"
@@ -219,11 +219,11 @@ def process_question(
         save_json(out_file, result)
         return "dry", f"[{index}/{total}] dry {qid} evidence={len(policy_images) + 1} boards"
 
-    if client is None:
+    if clients is None:
         raise RuntimeError("client is required unless --dry-run is set")
 
     scout_obj, scout_raw, _ = call_json(
-        client,
+        clients["scout"],
         scout_prompt(question, heuristic_type),
         [scout],
         max_output_tokens=args.scout_tokens,
@@ -257,7 +257,7 @@ def process_question(
     answer_images = ([scout] + policy_images + requested_images)[: args.max_images]
 
     answer_obj, answer_raw, _ = call_json(
-        client,
+        clients["answer"],
         answer_prompt(question, scout_obj, image_notes(answer_images)),
         answer_images,
         max_output_tokens=args.answer_tokens,
@@ -280,7 +280,7 @@ def process_question(
     verify_images = (answer_images + verifier_extra)[: args.max_images]
     if args.max_rounds >= 3:
         final_obj, verify_raw, _ = call_json(
-            client,
+            clients["verify"],
             verify_prompt(question, scout_obj, answer_obj, image_notes(verify_images)),
             verify_images,
             max_output_tokens=args.verify_tokens,
@@ -320,6 +320,7 @@ def process_question(
             "verify": final_raw,
         },
         "model": args.model,
+        "stage_models": args.stage_models,
         "base_url": args.base_url,
         "api_style": args.api_style,
         "reasoning_effort": args.reasoning_effort,
@@ -350,6 +351,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out-dir", type=Path, default=Path("outputs/agentic_vqa/latest"))
     parser.add_argument("--base-url", default=env.get("OPENAI_BASE_URL", ""))
     parser.add_argument("--model", default=env.get("OPENAI_MODEL", "gpt-5.5"))
+    parser.add_argument("--scout-model", default=None, help="Optional model for scout/planning calls. Defaults to --model.")
+    parser.add_argument("--answer-model", default=None, help="Optional model for answer calls. Defaults to --model.")
+    parser.add_argument("--verify-model", default=None, help="Optional model for verifier calls. Defaults to --model.")
     parser.add_argument("--api-style", choices=["auto", "responses", "chat"], default=(env.get("OPENAI_API_STYLE") or "auto").strip().lower())
     parser.add_argument("--reasoning-effort", choices=["low", "medium", "high", "xhigh"], default=(env.get("OPENAI_REASONING_EFFORT") or "high").strip().lower())
     parser.add_argument("--request-timeout", type=float, default=float(env.get("VRR_API_REQUEST_TIMEOUT", "240") or "240"))
@@ -373,7 +377,28 @@ def parse_args() -> argparse.Namespace:
 
     if args.api_style == "auto" and not args.base_url and not args.dry_run:
         required_env(env, "OPENAI_BASE_URL")
+    args.stage_models = {
+        "scout": args.scout_model or args.model,
+        "answer": args.answer_model or args.model,
+        "verify": args.verify_model or args.model,
+    }
     return args
+
+
+def build_stage_clients(args: argparse.Namespace, env: dict[str, str]) -> dict[str, RelayClient]:
+    base_url = args.base_url or required_env(env, "OPENAI_BASE_URL")
+    api_key = required_env(env, "OPENAI_API_KEY")
+    clients: dict[str, RelayClient] = {}
+    for stage, model in args.stage_models.items():
+        clients[stage] = RelayClient(
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            api_style=args.api_style,
+            request_timeout=args.request_timeout,
+            reasoning_effort=args.reasoning_effort,
+        )
+    return clients
 
 
 def main() -> None:
@@ -381,16 +406,9 @@ def main() -> None:
     env = merged_env()
     args.out_dir.mkdir(parents=True, exist_ok=True)
     (args.out_dir / "clips").mkdir(parents=True, exist_ok=True)
-    client = None
+    clients = None
     if not args.dry_run:
-        client = RelayClient(
-            base_url=args.base_url or required_env(env, "OPENAI_BASE_URL"),
-            api_key=required_env(env, "OPENAI_API_KEY"),
-            model=args.model,
-            api_style=args.api_style,
-            request_timeout=args.request_timeout,
-            reasoning_effort=args.reasoning_effort,
-        )
+        clients = build_stage_clients(args, env)
 
     question_files = find_question_files(args.input_dir)
     if args.only:
@@ -401,7 +419,7 @@ def main() -> None:
     total = len(question_files)
     print(f"Found {total} question files")
 
-    items = [(idx, total, path, args, client) for idx, path in enumerate(question_files, 1)]
+    items = [(idx, total, path, args, clients) for idx, path in enumerate(question_files, 1)]
     if args.workers <= 1:
         for item in items:
             _, message = process_question(*item)

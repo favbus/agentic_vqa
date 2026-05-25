@@ -55,6 +55,18 @@ python3 agentic_vqa/agentic_runner.py \
   --force
 ```
 
+Use stage-specific models:
+
+```bash
+python3 agentic_vqa/agentic_runner.py \
+  --scout-model gpt-5.4-mini \
+  --answer-model gpt-5.4 \
+  --verify-model gpt-5.5 \
+  --out-dir outputs/agentic_vqa/hybrid_run \
+  --workers 10 \
+  --force
+```
+
 Run a subset:
 
 ```bash
@@ -80,3 +92,4 @@ python3 agentic_vqa/score_agentic.py \
 - If API cost is too high, reduce `--max-rounds 2` for easy cases, but hard spatial/counting cases benefit from the verifier.
 - To avoid accidental answer leakage, do not pass `test_standard_answers.json` into the runner. It is intentionally only used by the scoring script.
 - The deterministic classifier is only a prior. In normal runs, the scout model can override the type before policy evidence is generated.
+- Use `agentic_vqa/run_matrix.py` with `configs/model_profiles.json` to compare models without hand-written one-off commands.

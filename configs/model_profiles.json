@@ -1,0 +1,41 @@
+[
+  {
+    "name": "gpt55_strong",
+    "description": "Single strong model for all stages.",
+    "model": "gpt-5.5",
+    "max_rounds": 3,
+    "max_images": 8
+  },
+  {
+    "name": "gpt54_balanced",
+    "description": "Balanced single-model run.",
+    "model": "gpt-5.4",
+    "max_rounds": 3,
+    "max_images": 8
+  },
+  {
+    "name": "hybrid_mini54_54_55",
+    "description": "Cheaper scout, balanced solver, strong verifier.",
+    "model": "gpt-5.4",
+    "scout_model": "gpt-5.4-mini",
+    "answer_model": "gpt-5.4",
+    "verify_model": "gpt-5.5",
+    "max_rounds": 3,
+    "max_images": 8
+  },
+  {
+    "name": "gpt52_baseline",
+    "description": "Lower-cost single-model baseline.",
+    "model": "gpt-5.2",
+    "max_rounds": 3,
+    "max_images": 8
+  },
+  {
+    "name": "gpt53_codex_probe",
+    "description": "Probe whether the codex-tuned model improves ledger-style reasoning.",
+    "model": "gpt-5.3-codex",
+    "max_rounds": 3,
+    "max_images": 8
+  }
+]
+
